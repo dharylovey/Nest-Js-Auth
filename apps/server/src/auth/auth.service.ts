@@ -8,17 +8,20 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { hash, verify } from 'argon2';
 import { jwtVerify, SignJWT } from 'jose';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
+    private readonly prismaService: PrismaService,
     private readonly config: ConfigService,
     private readonly userService: UserService,
   ) {}
 
   async me(token: string) {
     const user = await this.verifyToken(token);
-    const userId = user.payload.userId;
+
+    const userId = user.payload.sub;
     return this.userService.findOne(String(userId));
   }
 
@@ -63,7 +66,13 @@ export class AuthService {
   }
 
   async verifyToken(token: string) {
+    if (!token) {
+      throw new UnauthorizedException('Token is required');
+    }
     const secret = this.config.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined in environment variables');
+    }
     const payload = new TextEncoder().encode(secret);
     try {
       return await jwtVerify(token, payload);
