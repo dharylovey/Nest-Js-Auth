@@ -1,3 +1,4 @@
+import { UserService } from './../user/user.service';
 import {
   ConflictException,
   Injectable,
@@ -7,33 +8,33 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { hash, verify } from 'argon2';
 import { jwtVerify, SignJWT } from 'jose';
-import { PrismaService } from 'prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly userService: UserService,
   ) {}
 
+  async me(token: string) {
+    const user = await this.verifyToken(token);
+    const userId = user.payload.userId;
+    return this.userService.findOne(String(userId));
+  }
+
   async register(email: string, password: string) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const existingUser = await this.userService.findUserByEmail(email);
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
-    const hashedPassword = await hash(password);
-    return this.prisma.user.create({
-      data: { email, password: hashedPassword },
-    });
+    const hashedPassword = await this.hashPassword(password);
+    const data = await this.userService.createUser(email, hashedPassword);
+
+    return { message: 'User created successfully', success: true, data };
   }
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
+    const user = await this.userService.findUserByEmail(email);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -72,5 +73,9 @@ export class AuthService {
         message: 'Invalid token',
       });
     }
+  }
+
+  async hashPassword(password: string) {
+    return await hash(password);
   }
 }

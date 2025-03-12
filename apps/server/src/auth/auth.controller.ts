@@ -43,15 +43,21 @@ export class AuthController {
 
     const { email, password } = validatedFields.data;
 
-    const user = await this.authService.login(email, password);
+    const data = await this.authService.login(email, password);
 
-    res.cookie('authUser', user.token, {
+    res.cookie('authUser', data.token, {
       httpOnly: true,
       sameSite: 'lax',
       secure: this.config.get('NODE_ENV') === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 
-    return res.json({ message: 'Login successful', user });
+    return res.json({ message: 'Login successful', data });
+  }
+
+  @Post('logout')
+  logout(@Res() res: Response) {
+    res.clearCookie('authUser');
+    return res.json({ message: 'Logout successful', success: true });
   }
 }
